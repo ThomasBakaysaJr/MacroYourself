@@ -3,9 +3,9 @@ import os       # needed for clear screen
 import sys
 import mysql.connector
 
-cnx = mysql.connector.connect(user='freedb_Thomas', password='%8X?XnXC2uZ3j%h',
-                              host='sql.freedb.tech',
-                              database='freedb_FcamDB')
+cnx = mysql.connector.connect(user='root', password='baho9tae',
+                              host='localhost',
+                              database='macroYourself')
 
 def main():
     menu()
@@ -151,4 +151,5 @@ def ListIngredients():
 def ClearConsole():
     os.system('cls')      # windows
 
-main()
+if __name__ == '__main__':
+    main()

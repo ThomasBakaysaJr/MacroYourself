@@ -29,21 +29,33 @@ create table nutrient(
 create table recIng(
 	recId int NOT NULL,
     ingId int NOT NULL,
-    amountUsed int NOT NULL,
-    constraint PK_recIng PRIMARY KEY (recId, ingId)
+    amountUsed float NOT NULL,
+    constraint PK_recIng PRIMARY KEY (recId, ingId),
+    FOREIGN KEY(recId)
+		references recipe(recId)
+        on delete cascade,
+	FOREIGN KEY(ingId)
+		references ingredient(ingId)
+		on delete cascade
     );
     
 create table ingNut(
 	ingId int NOT NULL,
     nutId int NOT NULL,
-    amountPresent int NOT NULL,
-    constraint PK_ingNut PRIMARY KEY (ingId, nutId)
+    amountPresent float NOT NULL,
+    constraint PK_ingNut PRIMARY KEY (ingId, nutId),
+    FOREIGN KEY(ingId)
+		references ingredient(ingId)
+		on delete cascade,
+	FOREIGN KEY(nutId)
+		references nutrient(nutId)
+        on delete cascade
     );    
 
 create table couIng(
 	couId int,
     ingId int,
-    amountPresent int NOT NULL,
+    amountPresent float NOT NULL,
     PRIMARY KEY (couId, ingId)
     );
 
@@ -56,9 +68,15 @@ create table course(
 
 -- VIEWS AND SOME SUCH
 drop view if exists listRecIng;
+drop view if exists listAllRecIng;
 
 create view listRecIng as 
 	select recipe.recId, recipe.recFamily, recipe.recVariation, ingredient.ingName, recing.amountused, ingredient.servingmeasurement 
+	from recipe, ingredient, recing 
+	where recipe.recid = recing.recid and ingredient.ingid = recing.ingid;
+
+create view listAllRecIng as	
+	select recipe.recId, recipe.recFamily, recipe.recVariation, recipe.recVersion, ingredient.ingName, recing.amountused, ingredient.servingmeasurement 
 	from recipe, ingredient, recing 
 	where recipe.recid = recing.recid and ingredient.ingid = recing.ingid;
     
@@ -72,6 +90,15 @@ begin
     values (inFamily, inVariation, inVersion)
     on duplicate key update recVersion = inVersion + 1;
 end // 
+
+delimiter //
+
+create procedure ma_addIngredientToRecipe (in inRecId int, in inIngId int, in inPortion float)
+begin
+	insert into recIng (recId, ingId, amountUsed)
+    value (inRecId, inIngId, inPortion)
+    on duplicate key update amountUsed = inPortion;
+end //
 
 delimiter ;
 
@@ -117,6 +144,4 @@ insert into recing values (@recName, @ingName, 8);
 set @ingName := (select ingId from ingredient where ingName = 'Cheese');
 insert into recing values (@recName, @ingName, 2);
 
-select recipe.recFamily, recipe.recVariation, recipe.recVersion, ingredient.ingName, recing.amountused, ingredient.servingmeasurement 
-	from recipe, ingredient, recing 
-	where recipe.recid = recing.recid and ingredient.ingid = recing.ingid;
+select * from listAllRecIng;

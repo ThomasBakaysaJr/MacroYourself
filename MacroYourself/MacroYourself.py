@@ -3,9 +3,9 @@ import os       # needed for clear screen
 import sys
 import mysql.connector
 
-cnx = mysql.connector.connect(user='root', password='baho9tae',
+cnx = mysql.connector.connect(user='root', password='5737',
                               host='localhost',
-                              database='macroYourself')
+                              database='macroyourself')
 
 def main():
     menu()
@@ -21,6 +21,7 @@ def menu():
                        1: Show Recipes
                        2: Show ingredients for recipe
                        3: Insert new recipe
+                       4: Add Ingredients to recipe
                        Q: Quit
                        
                        Please Input Choice: """)
@@ -29,7 +30,9 @@ def menu():
         elif choice == "2":
             ShowIngredients()
         elif choice == "3":
-            insertRecipe()
+            InsertRecipe()
+        elif choice == "4":
+            StartInsertIngredients()
         elif choice == 'Q' or choice == 'q':
             cnx.close()
             sys.exit
@@ -72,7 +75,7 @@ def ShowIngredients():
 # If you want to change the ingredients the course used, code-wise, we would be changing the course's ingredient
 # and not the recipe's. This way recipe's stay sepereated from courses and we wont have such a large number of 
 # recipes (Like omelette version 1, version 2, version 3 etc)
-def insertRecipe():
+def InsertRecipe():
     ClearConsole()
     #input
     inRecFamily = input("Input Recipe name (Omelette etc): ")
@@ -115,20 +118,44 @@ def insertRecipe():
     args = (inRecFamily, inRecVariation, inVersion)
     cursor.callproc("ma_InsertRecipe", args)
     #No commits just yet, don't want to add a bunch of random stuff to the database if I dont have to
-    # cursor.commit()
+    cursor.commit()
     cursor.close()
-    #right now we are going to assume that the insert was successful
     print ("recipe was successfully inserted.")
     WaitForKeypress()
 
-def InputIngredients():
+# Standard way. Primarily will be used to determine which recipe we adding ingredients to
+def StartInsertIngredients():
+    ClearConsole()
+    recipe = input("Select recipe to add ingredients to. Leave blank to return: ")
+    if recipe.isspace():
+        print("Cancelled. Returning to main menu.")
+        WaitForKeypress()
+        return
+    InsertIngredients(recipe)
+
+def InsertIngredients(inRecId):
     retStr = ""
     print("Press enter after each ingredient, press enter when empty to finish.")
     while 1 == 1:
         tempStr = input("Ingredient: ")
-        if(tempStr.isspace()):
-            return retStr
-        retStr += "," + tempStr
+        if(tempStr.isspace() or not tempStr):
+            break
+        if retStr:
+            retStr += ","
+        retStr += tempStr
+
+    if retStr.isspace() or not retStr:
+        print("No Ingredients were added.")
+        WaitForKeypress()
+        return
+    
+    # NEED TO ADD OPTION TO ADD AMOUNTS, SINCE YOU'RE PUTTING A CERTAIN PORTION OF INGREDIENTS
+    # Add each ingredient to the recipe
+
+    for ing in retStr.split(","):
+        print(ing)
+    WaitForKeypress()
+
 
 def WaitForKeypress():
     input("Press Enter to continue...")

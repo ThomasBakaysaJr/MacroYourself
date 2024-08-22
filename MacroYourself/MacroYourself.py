@@ -48,7 +48,7 @@ def ShowRecipes():
     query = "select createdDate, recId, recFamily, recVariation, recVersion from recipe"
     cursor.execute(query)
     for (createdDate, recId, recFamily, recVariation, recVersion) in cursor:
-        print ("{},{},{},{},{}".format(createdDate, recId, recFamily, recVariation, recVersion))
+        print ("{}\t{}\t{}: {}".format(createdDate, recId, recFamily, recVariation))
 
     cursor.close()
     WaitForKeypress()
@@ -61,7 +61,7 @@ def ShowIngredients():
     query = ("select recId, recFamily, recVariation, ingName, amountused, servingmeasurement from listRecIng where recId = %s")
     cursor.execute(query, (inIng,))
     for (recId, recFamily, recVariation, ingName, amountused, servingmeasurement) in cursor:
-        print("{},{},{},{},{},{}".format(recId, recFamily, recVariation, ingName, amountused, servingmeasurement))
+        print("{}\t{} {}".format(ingName, amountused, servingmeasurement))
     
     cursor.close()
     WaitForKeypress()
@@ -100,10 +100,7 @@ def InsertRecipe():
         inVersion = 1
     else:
         printStatement += " already exists. \nCourses and meals made with this recipe will not be affected by changes. \nUpdate recipe?"
-        # If the changes should affect meals that have already been made, then keep this version since
-        # the procedure will automatically update the recipes. Else, increase the version so we get a 
-        # new entry.
-    
+            
     print(printStatement)
     #Confirm that this is what the user wants to do
     if not WaitForYesNo():
@@ -111,14 +108,12 @@ def InsertRecipe():
         WaitForKeypress()
         return
 
-
-
     #this will be cleaned up to actually let you input ingredients and their amounts, eventually
     #Send the recipe in
     args = (inRecFamily, inRecVariation, inVersion)
     cursor.callproc("ma_InsertRecipe", args)
     #No commits just yet, don't want to add a bunch of random stuff to the database if I dont have to
-    cursor.commit()
+    cnx.commit()
     cursor.close()
     print ("recipe was successfully inserted.")
     WaitForKeypress()
@@ -126,35 +121,99 @@ def InsertRecipe():
 # Standard way. Primarily will be used to determine which recipe we adding ingredients to
 def StartInsertIngredients():
     ClearConsole()
-    recipe = input("Select recipe to add ingredients to. Leave blank to return: ")
-    if recipe.isspace():
+    ListRecipes()
+    recipe = input("Select recipe number to add ingredients to. Leave blank to return: ")
+    if recipe.isspace() or not recipe:
         print("Cancelled. Returning to main menu.")
         WaitForKeypress()
         return
-    InsertIngredients(recipe)
+    determineIngredients(recipe)
 
-def InsertIngredients(inRecId):
-    retStr = ""
-    print("Press enter after each ingredient, press enter when empty to finish.")
+def determineIngredients(inRecId):
+    listIng = list()
+    listAmount = list()
+    ListIngredients()
+
+    #Keep adding ingredients. Add the actual ingredient and then the amount of the ingredient added
+    print(('\nInsert an ingredient number,\n'
+            'type DONE when finished.\n'
+            'type cancel at any time to return main menu.\n'))
     while 1 == 1:
+        # Will not allow a non-int to be used.
         tempStr = input("Ingredient: ")
-        if(tempStr.isspace() or not tempStr):
-            break
-        if retStr:
-            retStr += ","
-        retStr += tempStr
 
-    if retStr.isspace() or not retStr:
-        print("No Ingredients were added.")
-        WaitForKeypress()
+        # Test if done adding. If so, send to function that actually adds the ingredients
+        if tempStr.lower() == "cancel":
+            return
+        if tempStr.lower() == "done":
+            if len(listIng) > 0:
+                InsertIngredients(inRecId, listIng, listAmount)
+                return
+            else:
+                print ("no ingredients added to list, returning to main menu.")
+                WaitForKeypress()
+                return
+
+        # Test if the input is an int, throw em back if it isnt.
+        try:
+            tempStr = int(tempStr)
+        except:
+            print(tempStr + " is not a valid ingredient number.")
+            continue
+
+        listIng.append(tempStr)
+        tempStr = 0
+        
+        while not (tempStr > 0):  
+            tempStr = input("Amount: ")
+
+            if tempStr.lower() == "cancel":
+                return
+                    
+            # Test if the input is an int, throw em back if it isnt.
+            try:
+                tempStr = int(tempStr)
+            except:
+                print(tempStr + " is not a valid amount.")
+                tempStr = 0
+                continue
+        
+        listAmount.append(tempStr)
+
+        print("Ingredient " + str(listIng[-1]) + " with amount " + str(listAmount[-1]) + " added.")
+
+
+    if not len(listIng):
+        print("No ingredients added, returning to main menu.")
         return
     
     # NEED TO ADD OPTION TO ADD AMOUNTS, SINCE YOU'RE PUTTING A CERTAIN PORTION OF INGREDIENTS
     # Add each ingredient to the recipe
+    count = 0;
+    print ("The following ingredients and amounts will be added to recipe #" + inRecId)
+    for ing in listIng:
+        print(ing + ": " + listAmount[count])
 
-    for ing in retStr.split(","):
-        print(ing)
+    InsertIngredients(inRecId, listIng, listAmount)
     WaitForKeypress()
+
+# Try adding the ingredients. Will error out if invalid numbers are inserted.
+# Rollback transaction if even one ingredient fails to add. Finish and commit otherwise.
+def InsertIngredients(inRecId, listIng, listAmount):
+    cursor = cnx.cursor()
+    try:
+        for ing, amount in zip(listIng, listAmount):
+            args = (inRecId, ing, amount)
+            cursor.callproc("ma_addIngredientToRecipe", args)
+    except:
+        print("Something went wrong. Ingredient numbers may not exist.")
+        cnx.rollback()
+        cursor.close()
+        WaitForKeypress()
+        return
+    cursor.close()
+    cnx.commit()
+    return
 
 
 def WaitForKeypress():
@@ -170,9 +229,26 @@ def WaitForYesNo():
         else:
             print("Invalid choice.")
 
+
+# List functions. To print things in a nice readable way.
 def ListIngredients():
-    #List all ingredients in a nice format
+    cursor = cnx.cursor()
+    query = "select * from listAllIng"
+    cursor.execute(query,)
+    print("ID\tName\tMeasured by")
+    for (ingId, ingName, servingMeasurement) in cursor:
+        print("{}\t{}\t{}".format(ingId, ingName, servingMeasurement))
+    cursor.close()
     return
+
+def ListRecipes():
+    cursor = cnx.cursor()
+    query =  "select * from listAllRec"
+    cursor.execute(query,)
+    print ("Date Created\tID\tName and Variation")
+
+    for (recId, recName, recVar, date) in cursor:
+        print ("{}\t{}\t{}: {}".format(date, recId, recName, recVar))
 
 
 def ClearConsole():
